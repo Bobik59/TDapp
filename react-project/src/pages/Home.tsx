@@ -8,13 +8,26 @@ interface HomeProps {
   refresh: () => void;
 }
 
+const days = [
+  { label: "Пн", value: 1 },
+  { label: "Вт", value: 2 },
+  { label: "Ср", value: 3 },
+  { label: "Чт", value: 4 },
+  { label: "Пт", value: 5 },
+  { label: "Сб", value: 6 },
+  { label: "Вс", value: 0 },
+];
+
 export default function Home({ tasks, refresh }: HomeProps) {
   const [newTitle, setNewTitle] = useState("");
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
   const [time, setTime] = useState("");
   const [priority, setPriority] = useState<"low" | "medium" | "high">("low");
+  const [category, setCategory] = useState("general");
+  const [repeatDays, setRepeatDays] = useState<number[]>([]);
 
   const [tab, setTab] = useState<"active" | "done" | "overdue">("active");
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
 
   const handleAddTask = async () => {
     if (!newTitle) {
@@ -24,10 +37,10 @@ export default function Home({ tasks, refresh }: HomeProps) {
 
     const taskData = {
       title: newTitle,
-      date,
-      time: time || undefined,
+      date: new Date(`${date}T${time || "00:00"}`).toISOString(),
       priority,
-      done: false,
+      category,
+      repeatDays,
       status: "active",
     };
 
@@ -37,6 +50,8 @@ export default function Home({ tasks, refresh }: HomeProps) {
       setNewTitle("");
       setTime("");
       setPriority("low");
+      setCategory("general");
+      setRepeatDays([]);
 
       refresh();
     } catch (e) {
@@ -46,12 +61,19 @@ export default function Home({ tasks, refresh }: HomeProps) {
   };
 
   // фильтр по вкладке
-  const filtered = tasks.filter((t) => {
+  let filtered = tasks.filter((t) => {
     if (tab === "active") return t.status === "active";
     if (tab === "done") return t.status === "done";
     if (tab === "overdue") return t.status === "overdue";
     return true;
   });
+
+  // фильтр по категории
+  if (categoryFilter !== "all") {
+    filtered = filtered.filter((t) => t.category === categoryFilter);
+  }
+
+  const categories = Array.from(new Set(tasks.map((t) => t.category || "general")));
 
   return (
     <div className="p-4">
@@ -85,6 +107,22 @@ export default function Home({ tasks, refresh }: HomeProps) {
         >
           Просроченные
         </button>
+      </div>
+
+      {/* фильтр по категории */}
+      <div className="mb-4">
+        <select
+          value={categoryFilter}
+          onChange={(e) => setCategoryFilter(e.target.value)}
+          className="p-2 rounded bg-gray-800 text-white border border-gray-600"
+        >
+          <option value="all">Все категории</option>
+          {categories.map((c) => (
+            <option key={c} value={c}>
+              {c}
+            </option>
+          ))}
+        </select>
       </div>
 
       {/* форма */}
@@ -124,6 +162,35 @@ export default function Home({ tasks, refresh }: HomeProps) {
           <option value="medium">🟡 Средний</option>
           <option value="high">🔴 Высокий</option>
         </select>
+
+        {/* категория */}
+        <input
+          type="text"
+          placeholder="Категория"
+          value={category}
+          onChange={(e) => setCategory(e.target.value)}
+          className="w-full p-2 rounded bg-gray-700 text-white border border-gray-600 mb-2"
+        />
+
+        {/* повтор по дням */}
+        <div className="flex gap-2 flex-wrap mb-2">
+          {days.map((d) => (
+            <label key={d.value} className="flex items-center gap-1">
+              <input
+                type="checkbox"
+                checked={repeatDays.includes(d.value)}
+                onChange={(e) => {
+                  if (e.target.checked) {
+                    setRepeatDays([...repeatDays, d.value]);
+                  } else {
+                    setRepeatDays(repeatDays.filter((x) => x !== d.value));
+                  }
+                }}
+              />
+              {d.label}
+            </label>
+          ))}
+        </div>
 
         <button
           onClick={handleAddTask}

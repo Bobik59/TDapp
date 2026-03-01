@@ -1,6 +1,7 @@
 const { Telegraf, Markup } = require("telegraf");
 const User = require("./models/user.model");
 const Task = require("./models/task.model");
+const TaskStatus = require("./models/enums/TaskStatus");
 
 const token = process.env.TELEGRAM_BOT_TOKEN;
 
@@ -10,7 +11,6 @@ if (!token) {
 }
 
 const bot = new Telegraf(token);
-
 bot.telegram.deleteWebhook().catch(() => {});
 
 // ==========================
@@ -22,7 +22,35 @@ const menu = Markup.keyboard([
 ]).resize();
 
 // ==========================
-// /start — показываем меню
+// Вспомогательная функция
+// ==========================
+async function getUser(ctx) {
+  const username = ctx.from.username?.toLowerCase();
+
+  if (!username) {
+    await ctx.reply("Установите username в Telegram.");
+    return null;
+  }
+
+  const user = await User.findOne({ telegramId: username });
+
+  if (!user) {
+    await ctx.reply("Сначала зарегистрируйтесь.");
+    return null;
+  }
+
+  return user;
+}
+
+function parseTaskDate(task) {
+  if (!task.date) return null;
+
+  const date = new Date(task.date);
+  return isNaN(date.getTime()) ? null : date;
+}
+
+// ==========================
+// /start
 // ==========================
 bot.start(async (ctx) => {
   try {
@@ -30,7 +58,7 @@ bot.start(async (ctx) => {
     const chatId = ctx.chat.id;
 
     if (!username) {
-      return ctx.reply("У вас не установлен username в Telegram.");
+      return ctx.reply("Установите username в Telegram.");
     }
 
     await User.findOneAndUpdate(
@@ -42,110 +70,174 @@ bot.start(async (ctx) => {
       { upsert: true }
     );
 
-    ctx.reply("Привет! Меню активировано.", menu);
-  } catch (error) {
-    console.error("Bot error:", error);
-    ctx.reply("Произошла ошибка.");
+    ctx.reply("Бот подключён ✅", menu);
+  } catch (err) {
+    console.error(err);
+    ctx.reply("Ошибка.");
   }
 });
 
 // ==========================
-// обработка нажатий кнопок
+// 📋 Все задачи
 // ==========================
 bot.hears("📋 Задачи", async (ctx) => {
-  const username = ctx.from.username?.toLowerCase();
-  const user = await User.findOne({ telegramId: username });
+  const user = await getUser(ctx);
+  if (!user) return;
 
-  if (!user) return ctx.reply("Сначала зарегистрируйтесь.");
-
-  const tasks = await Task.find({ user: user._id });
-
-  if (!tasks.length) return ctx.reply("Задач нет.");
-
-  const lines = tasks.map(
-    (t, i) => `${i + 1}. ${t.title} [${t.date || "—"} ${t.time || ""}]`
-  );
-
-  ctx.reply(lines.join("\n"));
-});
-
-bot.hears("⏭ Следующая", async (ctx) => {
-  const username = ctx.from.username?.toLowerCase();
-  const user = await User.findOne({ telegramId: username });
-
-  if (!user) return ctx.reply("Сначала зарегистрируйтесь.");
-
-  const task = await Task.findOne({ user: user._id, done: false }).sort({
-    date: 1,
-    time: 1,
+  const tasks = await Task.find({
+    user: user._id,
+    isDeleted: false,
   });
 
-  if (!task) return ctx.reply("Ближайших задач нет.");
+  if (!tasks.length) {
+    return ctx.reply("Задач нет.");
+  }
 
-  ctx.reply(`⏳ Следующая:\n${task.title}\n${task.date} ${task.time || ""}`);
-});
+  // сортировка вручную (из-за String даты)
+  tasks.sort((a, b) => {
+    const da = parseTaskDate(a);
+    const db = parseTaskDate(b);
 
-bot.hears("➕ Добавить", (ctx) => {
-  ctx.reply("Формат:\n➕ название|дата|время\n\nПример:\n➕ Купить хлеб|2026-02-22|18:00");
-});
+    if (!da && !db) return 0;
+    if (!da) return 1;
+    if (!db) return -1;
 
-bot.hears("🗑 Удалить", (ctx) => {
-  ctx.reply("Формат:\n🗑 номер задачи\n\nЧтобы узнать номер — нажмите '📋 Задачи'.");
+    return da - db;
+  });
+
+  const lines = tasks.map((t, i) => {
+    const icon =
+      t.status === TaskStatus.Done ? "✅" :
+      t.status === TaskStatus.Overdue ? "🔴" :
+      "⏳";
+
+    const date = parseTaskDate(t);
+    const dateText = date ? date.toLocaleString() : "Без даты";
+
+    return `${i + 1}. ${icon} ${t.title}\n   ${dateText}`;
+  });
+
+  ctx.reply(lines.join("\n\n"));
 });
 
 // ==========================
-// обработка текста для добавления/удаления
+// ⏭ Следующая активная
+// ==========================
+bot.hears("⏭ Следующая", async (ctx) => {
+  const user = await getUser(ctx);
+  if (!user) return;
+
+  const tasks = await Task.find({
+    user: user._id,
+    status: TaskStatus.Active,
+    isDeleted: false,
+  });
+
+  const now = new Date();
+
+  const upcoming = tasks
+    .map(t => ({
+      task: t,
+      date: parseTaskDate(t)
+    }))
+    .filter(t => t.date && t.date > now)
+    .sort((a, b) => a.date - b.date);
+
+  if (!upcoming.length) {
+    return ctx.reply("Ближайших активных задач нет.");
+  }
+
+  const next = upcoming[0];
+
+  ctx.reply(
+    `⏳ Следующая:\n\n${next.task.title}\n${next.date.toLocaleString()}`
+  );
+});
+
+// ==========================
+// ➕ Подсказка
+// ==========================
+bot.hears("➕ Добавить", (ctx) => {
+  ctx.reply(
+`Формат:
+➕ Название | 2026-03-01T18:00
+
+Дата необязательна`
+  );
+});
+
+// ==========================
+// 🗑 Подсказка
+// ==========================
+bot.hears("🗑 Удалить", (ctx) => {
+  ctx.reply("Формат:\n🗑 номер задачи");
+});
+
+// ==========================
+// Обработка текста
 // ==========================
 bot.on("text", async (ctx) => {
   const text = ctx.message.text.trim();
-  const username = ctx.from.username?.toLowerCase();
-  const user = await User.findOne({ telegramId: username });
+  const user = await getUser(ctx);
+  if (!user) return;
 
-  if (!user) return ctx.reply("Сначала зарегистрируйтесь.");
-
-  // ➕ добавление
+  // ➕ Добавление
   if (text.startsWith("➕")) {
     const data = text.replace("➕", "").trim();
-    const [title, date, time] = data.split("|").map((s) => s?.trim());
+    const [titleRaw, dateRaw] = data.split("|");
 
-    if (!title) return ctx.reply("Формат: ➕ название|дата|время");
+    const title = titleRaw?.trim();
+    const date = dateRaw?.trim();
 
-    const task = new Task({
+    if (!title) {
+      return ctx.reply("Название обязательно.");
+    }
+
+    if (date) {
+      const parsed = new Date(date);
+      if (isNaN(parsed.getTime())) {
+        return ctx.reply("Неверный формат даты.");
+      }
+    }
+
+    await Task.create({
       title,
-      date,
-      time,
+      date: date || null,
       user: user._id,
-      done: false,
-      status: "active",
+      status: TaskStatus.Active,
     });
 
-    await task.save();
-    return ctx.reply("Задача добавлена 👍");
+    return ctx.reply("Задача добавлена ✅");
   }
 
-  // 🗑 удаление по номеру
+  // 🗑 Удаление
   if (text.startsWith("🗑")) {
     const index = parseInt(text.replace("🗑", "").trim());
 
-    if (!index) return ctx.reply("Формат: 🗑 номер");
+    if (!index) {
+      return ctx.reply("Введите корректный номер.");
+    }
 
-    const tasks = await Task.find({ user: user._id }).sort({ createdAt: 1 });
+    const tasks = await Task.find({
+      user: user._id,
+      isDeleted: false,
+    });
 
     if (index < 1 || index > tasks.length) {
       return ctx.reply("Неверный номер.");
     }
 
-    const task = tasks[index - 1];
-    await Task.findByIdAndDelete(task._id);
+    await Task.findByIdAndUpdate(tasks[index - 1]._id, {
+      isDeleted: true,
+    });
 
     return ctx.reply("Задача удалена 🗑");
   }
 });
 
-bot.catch((err) => console.error("Bot error:", err));
+bot.catch(err => console.error("Bot error:", err));
 
 bot.launch();
-
 console.log("Telegram bot started");
 
 module.exports = { bot };
