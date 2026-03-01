@@ -1,4 +1,4 @@
-const BASE_URL = import.meta.env.VITE_API_URL + "/api/auth";
+const BASE_URL = "http://localhost:5000/api/auth";
 
 export const sendCode = async (
   username: string,

@@ -73,7 +73,7 @@ export default function Register({ setUser }: RegisterProps) {
   // форма регистрации
   if (step === "form") {
     return (
-      <div className="flex flex-col gap-3 p-6 w-80 border rounded shadow">
+      <div className="flex flex-col gap-3 p-6 w-80 bg-gray-900 text-white rounded">
         <h2 className="text-xl font-bold">Регистрация</h2>
 
         <input
@@ -81,7 +81,7 @@ export default function Register({ setUser }: RegisterProps) {
           placeholder="Username"
           value={username}
           onChange={(e) => setUsername(e.target.value)}
-          className="border p-2 rounded"
+          className="w-full p-2 rounded bg-gray-800 text-white border border-gray-700"
         />
 
         <input
@@ -89,7 +89,7 @@ export default function Register({ setUser }: RegisterProps) {
           placeholder="Пароль"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="border p-2 rounded"
+          className="w-full p-2 rounded bg-gray-800 text-white border border-gray-700"
         />
 
         <input
@@ -97,14 +97,14 @@ export default function Register({ setUser }: RegisterProps) {
           placeholder="Telegram username (без @)"
           value={telegramId}
           onChange={(e) => setTelegramId(e.target.value)}
-          className="border p-2 rounded"
+          className="w-full p-2 rounded bg-gray-800 text-white border border-gray-700"
         />
 
         <button
           onClick={handleSendCode}
           disabled={loading}
-          className={`p-2 rounded text-white ${
-            loading ? "bg-gray-400" : "bg-green-500"
+          className={`w-full p-2 rounded text-white ${
+            loading ? "bg-gray-500" : "bg-green-600 hover:bg-green-700"
           }`}
         >
           {loading ? "Отправка кода..." : "Отправить код"}
@@ -115,7 +115,7 @@ export default function Register({ setUser }: RegisterProps) {
 
   // форма ввода кода
   return (
-    <div className="flex flex-col gap-3 p-6 w-80 border rounded shadow">
+    <div className="flex flex-col gap-3 p-6 w-80 bg-gray-900 text-white rounded">
       <h2 className="text-xl font-bold">Введите код из Telegram</h2>
 
       <input
@@ -123,14 +123,14 @@ export default function Register({ setUser }: RegisterProps) {
         placeholder="Код"
         value={code}
         onChange={(e) => setCode(e.target.value)}
-        className="border p-2 rounded"
+        className="w-full p-2 rounded bg-gray-800 text-white border border-gray-700"
       />
 
       <button
         onClick={handleVerify}
         disabled={loading}
-        className={`p-2 rounded text-white ${
-          loading ? "bg-gray-400" : "bg-blue-500"
+        className={`w-full p-2 rounded text-white ${
+          loading ? "bg-gray-500" : "bg-blue-600 hover:bg-blue-700"
         }`}
       >
         {loading ? "Проверка..." : "Подтвердить"}
