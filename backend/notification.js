@@ -1,4 +1,6 @@
 const Task = require("./models/task.model");
+const TaskStatus = require("./models/enums/TaskStatus");
+const User = require("./models/user.model");
 const { bot } = require("./bot");
 
 function startNotificationJob() {
@@ -6,41 +8,36 @@ function startNotificationJob() {
     try {
       const now = new Date();
 
-      const tasks = await Task.find({ done: false });
+      const tasks = await Task.find({
+        isDeleted: false,
+        status: { $in: [TaskStatus.Active] }
+      });
 
       for (const task of tasks) {
-        if (!task.date || !task.time || !task.user) continue;
+        if (!task.date) continue;
 
-        const taskTime = new Date(task.date + "T" + task.time);
-
-        // 🔴 просрочено
-        if (taskTime < now) {
-          if (task.status !== "overdue") {
-            task.status = "overdue";
-            await task.save();
-          }
+        // 🔴 Просрочено
+        if (task.date < now && task.status === TaskStatus.Active) {
+          task.status = TaskStatus.Overdue;
+          await task.save();
           continue;
         }
 
-        // ⏰ напоминание за 30 минут
-        const diff = taskTime - now;
+        // ⏰ Напоминание за 30 минут
+        const diff = task.date - now;
 
         if (diff > 0 && diff <= 30 * 60 * 1000 && !task.notified) {
-          try {
-            const user = await require("./models/user.model").findById(task.user);
+          const user = await User.findById(task.user);
 
-            if (user?.telegramChatId) {
-              await bot.telegram.sendMessage(
-                user.telegramChatId,
-                `⏰ Напоминание: через 30 минут задача\n\n${task.title}`
-              );
-            }
-
-            task.notified = true;
-            await task.save();
-          } catch (e) {
-            console.error("Notify error:", e);
+          if (user?.telegramChatId) {
+            await bot.telegram.sendMessage(
+              user.telegramChatId,
+              `⏰ Напоминание:\n\n${task.title}`
+            );
           }
+
+          task.notified = true;
+          await task.save();
         }
       }
     } catch (err) {

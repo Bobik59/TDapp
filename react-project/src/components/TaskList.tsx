@@ -1,27 +1,31 @@
 import TaskItem from "./TaskItem";
-import type { Task } from "./TaskItem";
 
-interface TaskListProps {
-  tasks: Task[];
-  refresh: () => void;
-  filterDate?: string;
+interface Task {
+  _id: string;
+  title: string;
+  date: string;
+  priority: "low" | "medium" | "high";
+  status: "active" | "done" | "overdue";
 }
 
-export default function TaskList({ tasks, refresh, filterDate }: TaskListProps) {
-  if (!Array.isArray(tasks)) return <div className="text-gray-400">Нет задач</div>;
+interface Props {
+  tasks: Task[];
+  refresh: () => void;
+}
 
-  const sorted = [...tasks]
-    .filter(t => !filterDate || t.date === filterDate)
-    .sort((a, b) => (a.time || "").localeCompare(b.time || ""));
-
-  if (sorted.length === 0) {
-    return <div className="text-gray-400">Задач нет</div>;
+export default function TaskList({ tasks, refresh }: Props) {
+  if (!tasks.length) {
+    return <div className="text-gray-400">Нет задач</div>;
   }
 
   return (
-    <div className="space-y-3">
-      {sorted.map(task => (
-        <TaskItem key={task._id} task={task} refresh={refresh} />
+    <div>
+      {tasks.map((task) => (
+        <TaskItem
+          key={task._id}
+          task={task}
+          refresh={refresh}
+        />
       ))}
     </div>
   );

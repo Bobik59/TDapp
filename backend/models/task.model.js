@@ -6,10 +6,22 @@ const taskSchema = new mongoose.Schema(
     date: { type: String },
     time: { type: String },
     priority: { type: String, enum: ["low", "medium", "high"], default: "low" },
-
+    isDeleted: {
+      type: Boolean,
+      default: false
+    },
     done: { type: Boolean, default: false },
+    
+    repeatDays: {
+    type: [Number], // 0-6 (0 = воскресенье, 1 = понедельник...)
+    default: [],
+    },
 
-    // новый статус
+    category: {
+    type: String,
+    default: "general",
+    },
+
     status: {
       type: String,
       enum: ["active", "done", "overdue"],
