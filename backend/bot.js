@@ -237,7 +237,13 @@ bot.on("text", async (ctx) => {
 
 bot.catch(err => console.error("Bot error:", err));
 
-bot.launch();
+bot.launch({
+  dropPendingUpdates: true
+});
+
+process.once('SIGINT', () => bot.stop('SIGINT'));
+process.once('SIGTERM', () => bot.stop('SIGTERM'));
+
 console.log("Telegram bot started");
 
 module.exports = { bot };
